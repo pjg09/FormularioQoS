@@ -43,7 +43,6 @@
     .boton-eliminar:hover {
       opacity: 0.9;
     }
-    /* Estilo para el origen fijo (texto) */
     .origen-fijo {
       background-color: #f9f9f9;
       padding: 10px;
@@ -52,6 +51,12 @@
       margin-top: 4px;
       font-style: italic;
       color: #555;
+    }
+    .error-tarifa {
+      color: #e74c3c;
+      font-size: 12px;
+      margin-top: 4px;
+      display: none;
     }
   </style>
 </head>
@@ -82,6 +87,7 @@
     let municipioPorLugar = {};
     let municipioPorSede = {};
     let zonaPorMunicipio = {};
+    let tarifas = {};
 
     /* =======================
       CARGA INICIAL
@@ -101,6 +107,7 @@
       municipioPorLugar = data.municipioPorLugar || {};
       municipioPorSede = data.municipioPorSede || {};
       zonaPorMunicipio = data.zonaPorMunicipio;
+      tarifas = data.tarifas || {};
 
       agregarBloque();
     }).obtenerListas();
@@ -130,11 +137,9 @@
 
       const div = document.createElement("div");
       div.className = "bloque";
-      div.dataset.bloqueIndex = bloques.length; // Guardamos el índice del bloque
+      div.dataset.bloqueIndex = bloques.length;
 
-      // HTML diferente según si es el primer bloque o no
       if (esPrimerBloque) {
-        // PRIMER BLOQUE: origen editable
         div.innerHTML = `
           <button type="button" class="boton-eliminar" onclick="eliminarBloque(this)">ELIMINAR DESPLAZAMIENTO</button>
 
@@ -181,10 +186,10 @@
           <div class="contenedor-buses" style="display:none;"></div>
 
           <label>Valor</label>
-          <input type="text" class="valor bloqueado" placeholder="Valor calculado Automáticamente" readonly>
+          <input type="text" class="valor bloqueado" placeholder="Valor calculado automáticamente" readonly>
+          <div class="error-tarifa"></div>
         `;
       } else {
-        // BLOQUES SIGUIENTES: origen como texto fijo (no editable)
         div.innerHTML = `
           <button type="button" class="boton-eliminar" onclick="eliminarBloque(this)">ELIMINAR DESPLAZAMIENTO</button>
 
@@ -193,7 +198,6 @@
             <span class="origen-texto">Seleccione destino en el bloque anterior</span>
           </div>
           
-          <!-- Campos ocultos para almacenar el origen real -->
           <input type="hidden" class="origen-value" value="">
           <input type="hidden" class="otro-origen" value="">
           <input type="hidden" class="sedeOrigen-value" value="">
@@ -225,7 +229,8 @@
           <div class="contenedor-buses" style="display:none;"></div>
 
           <label>Valor</label>
-          <input type="text" class="valor bloqueado" placeholder="Valor calculado Automáticamente" readonly>
+          <input type="text" class="valor bloqueado" placeholder="Valor calculado automáticamente" readonly>
+          <div class="error-tarifa"></div>
         `;
       }
 
@@ -234,30 +239,36 @@
       const destinoSelect = div.querySelector(".destino");
       const cantidadBusesSelect = div.querySelector(".cantidad-buses");
       
-      cantidadBusesSelect.addEventListener("change", () => generarBuses(div));
+      cantidadBusesSelect.addEventListener("change", () => {
+        generarBuses(div);
+        calcularValor(div);
+      });
+      
       destinoSelect.addEventListener("change", () => {
         manejarDestino(destinoSelect);
-        actualizarSiguienteBloque(div); // Actualizar el bloque siguiente cuando cambie el destino
+        actualizarSiguienteBloque(div);
+        calcularValor(div);
       });
 
       if (esPrimerBloque) {
-        // Solo el primer bloque tiene origen editable
         const origenSelect = div.querySelector(".origen");
-        origenSelect.addEventListener("change", () => manejarOrigen(origenSelect));
+        origenSelect.addEventListener("change", () => {
+          manejarOrigen(origenSelect);
+          calcularValor(div);
+        });
       } else {
-        // Sincronizar origen con el destino del bloque anterior
         sincronizarOrigenConBloqueAnterior(div);
       }
     }
 
     /* =======================
-      SINCRONIZAR ORIGEN CON BLOQUE ANTERIOR
+      SINCRONIZAR ORIGEN
     ======================= */
     function sincronizarOrigenConBloqueAnterior(bloqueActual) {
       const bloques = Array.from(document.querySelectorAll(".bloque"));
       const indexActual = bloques.indexOf(bloqueActual);
       
-      if (indexActual === 0) return; // El primer bloque no se sincroniza
+      if (indexActual === 0) return;
 
       const bloqueAnterior = bloques[indexActual - 1];
       const destinoAnterior = bloqueAnterior.querySelector(".destino").value;
@@ -282,7 +293,6 @@
         origenValue.value = destinoAnterior;
         otroOrigenInput.value = "";
         
-        // Verificar si tiene sede
         if (sedesPorOrigen[destinoAnterior]) {
           const sedeDestino = bloqueAnterior.querySelector(".sedeDestino").value;
           sedeOrigenValue.value = sedeDestino;
@@ -294,6 +304,8 @@
           sedeOrigenValue.value = "";
         }
       }
+      
+      calcularValor(bloqueActual);
     }
 
     /* =======================
@@ -303,7 +315,6 @@
       const bloques = Array.from(document.querySelectorAll(".bloque"));
       const indexActual = bloques.indexOf(bloqueActual);
       
-      // Si hay un bloque siguiente, actualizarlo
       if (indexActual < bloques.length - 1) {
         const siguienteBloque = bloques[indexActual + 1];
         sincronizarOrigenConBloqueAnterior(siguienteBloque);
@@ -311,7 +322,7 @@
     }
 
     /* =======================
-      ORIGEN (solo para primer bloque)
+      ORIGEN
     ======================= */
     function manejarOrigen(select) {
       const bloque = select.closest(".bloque");
@@ -339,6 +350,8 @@
           op.textContent = s;
           selSede.appendChild(op);
         });
+        
+        selSede.addEventListener("change", () => calcularValor(bloque));
       } else {
         contSede.style.display = "none";
         selSede.innerHTML = "";
@@ -375,9 +388,9 @@
           selSede.appendChild(op);
         });
         
-        // Listener para actualizar el siguiente bloque cuando cambie la sede
         selSede.addEventListener("change", () => {
           actualizarSiguienteBloque(bloque);
+          calcularValor(bloque);
         });
       } else {
         contSede.style.display = "none";
@@ -386,7 +399,7 @@
     }
 
     /* =======================
-      GENERAR CANTIDAD DE BUSES
+      GENERAR BUSES
     ======================= */  
     function generarBuses(bloque) {
       const cantidad = Number(bloque.querySelector(".cantidad-buses").value);
@@ -414,7 +427,17 @@
 
       contenedor.style.display = "block";
 
-      for (let i = 1; i <= cantidad; i++) {
+      // Bus 1 (anclado al origen) - readonly
+      const divBus1 = document.createElement("div");
+      divBus1.className = "bus";
+      divBus1.innerHTML = `
+        <label>Bus 1 – Municipio donde tomó el bus</label>
+        <input type="text" class="municipio-bus-fijo bloqueado" value="${municipioOrigen}" readonly>
+      `;
+      contenedor.appendChild(divBus1);
+
+      // Buses adicionales (2 y 3)
+      for (let i = 2; i <= cantidad; i++) {
         const divBus = document.createElement("div");
         divBus.className = "bus";
 
@@ -428,6 +451,8 @@
           op.textContent = m;
           select.appendChild(op);
         });
+        
+        select.addEventListener("change", () => calcularValor(bloque));
 
         divBus.innerHTML = `<label>Bus ${i} – Municipio donde tomó el bus</label>`;
         divBus.appendChild(select);
@@ -435,14 +460,15 @@
       }
     }
 
-    /* Obtener Municipios*/
+    /* =======================
+      OBTENER MUNICIPIO
+    ======================= */
     function obtenerMunicipioDesdeBloque(bloque, tipo) {
       const bloques = Array.from(document.querySelectorAll(".bloque"));
       const esPrimerBloque = bloques.indexOf(bloque) === 0;
 
       if (tipo === "origen") {
         if (esPrimerBloque) {
-          // Primer bloque: tiene select de origen
           const selectLugar = bloque.querySelector(".origen");
           const lugar = selectLugar.value;
 
@@ -457,7 +483,6 @@
 
           return municipioPorLugar[lugar] || "";
         } else {
-          // Bloques siguientes: usan valores hidden
           const origenValue = bloque.querySelector(".origen-value").value;
           
           if (!origenValue || origenValue === "OTRO") return "";
@@ -471,7 +496,6 @@
           return municipioPorLugar[origenValue] || "";
         }
       } else {
-        // tipo === "destino"
         const selectLugar = bloque.querySelector(".destino");
         const lugar = selectLugar.value;
 
@@ -488,7 +512,9 @@
       }
     }
 
-    /* Municipios permitidos*/ 
+    /* =======================
+      MUNICIPIOS PERMITIDOS
+    ======================= */
     function obtenerMunicipiosPermitidos(origenMunicipio, destinoMunicipio) {
       if (origenMunicipio === destinoMunicipio) {
         return [origenMunicipio];
@@ -509,6 +535,124 @@
     }
 
     /* =======================
+      CALCULAR VALOR
+    ======================= */
+    function calcularValor(bloque) {
+      const valorInput = bloque.querySelector(".valor");
+      const errorDiv = bloque.querySelector(".error-tarifa");
+      
+      const municipioOrigen = obtenerMunicipioDesdeBloque(bloque, "origen");
+      const municipioDestino = obtenerMunicipioDesdeBloque(bloque, "destino");
+      const cantidad = Number(bloque.querySelector(".cantidad-buses").value);
+
+      // Limpiar error previo
+      errorDiv.style.display = "none";
+      errorDiv.textContent = "";
+
+      if (!municipioOrigen || !municipioDestino || !cantidad) {
+        valorInput.value = "";
+        return;
+      }
+
+      let total = 0;
+      let errorEncontrado = false;
+      let mensajeError = "";
+
+      if (cantidad === 1) {
+        // Tarifa directa
+        const tarifa = buscarTarifa(municipioOrigen, municipioDestino);
+        if (tarifa === null) {
+          errorEncontrado = true;
+          mensajeError = `No existe tarifa: ${municipioOrigen} → ${municipioDestino}`;
+        } else {
+          total = tarifa;
+        }
+      } else {
+        // Múltiples buses
+        const municipiosBuses = [municipioOrigen]; // Bus 1 anclado al origen
+        
+        bloque.querySelectorAll(".municipio-bus").forEach(sel => {
+          if (sel.value) {
+            municipiosBuses.push(sel.value);
+          }
+        });
+
+        // Si no ha seleccionado todos los municipios intermedios, no calcular
+        if (municipiosBuses.length < cantidad) {
+          valorInput.value = "";
+          return;
+        }
+
+        // Agregar destino al final
+        municipiosBuses.push(municipioDestino);
+
+        // Calcular tramos
+        for (let i = 0; i < municipiosBuses.length - 1; i++) {
+          const desde = municipiosBuses[i];
+          const hasta = municipiosBuses[i + 1];
+          const tarifa = buscarTarifa(desde, hasta);
+          
+          if (tarifa === null) {
+            errorEncontrado = true;
+            mensajeError = `No existe tarifa: ${desde} → ${hasta}`;
+            break;
+          }
+          
+          total += tarifa;
+        }
+      }
+
+      if (errorEncontrado) {
+        valorInput.value = "0";
+        errorDiv.textContent = mensajeError;
+        errorDiv.style.display = "block";
+      } else {
+        valorInput.value = formatearNumero(total);
+      }
+    }
+
+    /* =======================
+      BUSCAR TARIFA
+    ======================= */
+    function buscarTarifa(origen, destino) {
+      // Normalizar antes de buscar
+      const origenNorm = normalizarTexto(origen);
+      const destinoNorm = normalizarTexto(destino);
+      
+      // Buscar en ambas direcciones (simétricas)
+      const key1 = `${origenNorm}|${destinoNorm}`;
+      const key2 = `${destinoNorm}|${origenNorm}`;
+      
+      if (tarifas[key1] !== undefined) {
+        return tarifas[key1];
+      }
+      
+      if (tarifas[key2] !== undefined) {
+        return tarifas[key2];
+      }
+      
+      return null; // No existe la tarifa
+    }
+
+    /* =======================
+      NORMALIZAR TEXTO
+    ======================= */
+    function normalizarTexto(texto) {
+      return texto
+        .toString()
+        .toUpperCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, ""); // Elimina tildes
+    }
+
+    /* =======================
+      FORMATEAR NÚMERO
+    ======================= */
+    function formatearNumero(num) {
+      return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    }
+
+    /* =======================
       ELIMINAR BLOQUE
     ======================= */
     function eliminarBloque(btn) {
@@ -524,7 +668,6 @@
       
       bloqueAEliminar.remove();
       
-      // Actualizar el siguiente bloque si existe
       if (indexEliminar < bloquesArray.length - 1) {
         const siguienteBloque = bloquesArray[indexEliminar + 1];
         if (siguienteBloque) {
@@ -534,7 +677,7 @@
     }
 
     /* =======================
-      FORMATO VALOR
+      FORMATO VALOR (no usada)
     ======================= */
     function formatearValor(input) {
       let valor = input.value.replace(/\D/g, "");
@@ -571,7 +714,7 @@
 
         b.querySelectorAll(".municipio-bus").forEach((sel, idx) => {
           if (!sel.value) {
-            error = `Debe seleccionar el municipio del bus ${idx + 1} en el desplazamiento ${i + 1}`;
+            error = `Debe seleccionar el municipio del bus ${idx + 2} en el desplazamiento ${i + 1}`;
             return;
           }
           municipiosBuses.push(sel.value);
@@ -609,7 +752,6 @@
             }
           }
         } else {
-          // Bloques siguientes: leer de campos hidden
           const origenValue = b.querySelector(".origen-value").value;
           if (!origenValue) {
             error = `El origen no está definido en el desplazamiento ${i + 1}. Complete el destino del bloque anterior.`;
@@ -659,7 +801,7 @@
         }
 
         if (!valor || valor <= 0) {
-          error = `El valor es obligatorio en el desplazamiento ${i + 1}`;
+          error = `El valor es obligatorio o no se pudo calcular en el desplazamiento ${i + 1}`;
           return;
         }
 
