@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+    }
+    label {
+      font-weight: bold;
+      display: block;
+      margin-top: 10px;
+    }
+    select, input {
+      width: 100%;
+      padding: 6px;
+      margin-top: 4px;
+    }
+    .bloque {
+      border: 1px solid #ccc;
+      padding: 10px;
+      margin-top: 15px;
+    }
+    button {
+      margin-top: 15px;
+      padding: 10px;
+      width: 100%;
+    }
+    .bloqueado {
+      background-color: #f2f2f2;
+      cursor: not-allowed;
+    }
+    .boton-eliminar {
+      background-color: #e74c3c;
+      color: white;
+      border: none;
+      padding: 6px 10px;
+      cursor: pointer;
+      width: auto;
+      float: right;
+    }
+    .boton-eliminar:hover {
+      opacity: 0.9;
+    }
+  </style>
+</head>
+
+<body>
+<h3>Formulario de recibos de transporte</h3>
+
+<label>Nombre y cédula</label>
+<select id="tecnico">
+  <option value="">Seleccione nombre y cédula</option>
+</select>
+
+<label>Fecha</label>
+<input type="date" id="fecha">
+
+<div id="desplazamientos"></div>
+
+<button onclick="agregarBloque()">➕ Agregar desplazamiento</button>
+<button onclick="enviar()">Enviar</button>
+
+  <script>
+    /* =======================
+      VARIABLES GLOBALES
+    ======================= */
+    let lugares = [];
+    let sedesPorOrigen = {};
+    let municipios = [];
+    let municipioPorLugar = {};
+    let municipioPorSede = {};
+    let zonaPorMunicipio = {};
+
+    /* =======================
+      CARGA INICIAL
+    ======================= */
+    google.script.run.withSuccessHandler(data => {
+      const selTec = document.getElementById("tecnico");
+      data.tecnicos.forEach(t => {
+        const op = document.createElement("option");
+        op.value = t;
+        op.textContent = t;
+        selTec.appendChild(op);
+      });
+
+      lugares = data.lugares;
+      sedesPorOrigen = data.sedesPorOrigen;
+      municipios = data.municipios || [];
+      municipioPorLugar = data.municipioPorLugar || {};
+      municipioPorSede = data.municipioPorSede || {};
+      zonaPorMunicipio = data.zonaPorMunicipio;
+
+      agregarBloque();
+    }).obtenerListas();
+
+    /* =======================
+      AGREGAR BLOQUE
+    ======================= */
+    function agregarBloque() {
+      const bloques = document.querySelectorAll(".bloque");
+      const ultimoBloque = bloques.length ? bloques[bloques.length - 1] : null;
+
+      let destinoPrevio = "";
+      let sedeDestinoPrevia = "";
+      let otroDestinoPrevio = "";
+
+      if (ultimoBloque) {
+        const destinoSel = ultimoBloque.querySelector(".destino");
+        destinoPrevio = destinoSel.value;
+
+        if (destinoPrevio === "OTRO") {
+          otroDestinoPrevio = ultimoBloque.querySelector(".otro-destino").value.trim();
+        } else if (sedesPorOrigen[destinoPrevio]) {
+          sedeDestinoPrevia = ultimoBloque.querySelector(".sedeDestino").value;
+        }
+      }
+
+      const div = document.createElement("div");
+      div.className = "bloque";
+
+      div.innerHTML = `
+        <button type="button" class="boton-eliminar" onclick="eliminarBloque(this)">ELIMINAR DESPLAZAMIENTO</button>
+
+        <label>Origen</label>
+        <select class="origen">
+          <option value="">Seleccione origen</option>
+          ${lugares.map(l => `<option>${l}</option>`).join("")}
+          <option value="OTRO">Otro</option>
+        </select>
+
+        <input type="text" class="otro-origen" placeholder="Especifique el origen" style="display:none;">
+
+        <div class="sede-origen" style="display:none;">
+          <label>Sede origen</label>
+          <select class="sedeOrigen">
+            <option value="">Seleccione la sede</option>
+          </select>
+        </div>
+
+        <label>Destino</label>
+        <select class="destino">
+          <option value="">Seleccione destino</option>
+          ${lugares.map(l => `<option>${l}</option>`).join("")}
+          <option value="OTRO">Otro</option>
+        </select>
+
+        <input type="text" class="otro-destino" placeholder="Especifique el destino" style="display:none;">
+
+        <div class="sede-destino" style="display:none;">
+          <label>Sede destino</label>
+          <select class="sedeDestino">
+            <option value="">Seleccione la sede</option>
+          </select>
+        </div>
+
+        <label>¿Cuántos buses tomaste?</label>
+          <select class="cantidad-buses" onchange="generarBuses(this.closest('.bloque'))">
+            <option value="">Seleccione</option>
+            <option value="1">1 bus</option>
+            <option value="2">2 buses</option>
+            <option value="3">3 buses</option>
+          </select>
+        <label>Valor</label>
+
+        <div class="contenedor-buses" style="display:none;"></div>
+
+        <input type="text" class="valor bloqueado" placeholder="Valor calculado Automáticamente" readonly>
+      `;
+
+      document.getElementById("desplazamientos").appendChild(div);
+
+      const origenSelect = div.querySelector(".origen");
+      const destinoSelect = div.querySelector(".destino");
+      const cantidadBusesSelect = div.querySelector(".cantidad-buses");
+      cantidadBusesSelect.addEventListener("change", () => generarBuses(div));
+
+      origenSelect.addEventListener("change", () => manejarOrigen(origenSelect));
+      destinoSelect.addEventListener("change", () => manejarDestino(destinoSelect));
+
+      if (destinoPrevio) {
+        origenSelect.value = destinoPrevio;
+        manejarOrigen(origenSelect);
+        origenSelect.disabled = true;
+        origenSelect.classList.add("bloqueado");
+
+        if (destinoPrevio === "OTRO" && otroDestinoPrevio) {
+          const otroOrigen = div.querySelector(".otro-origen");
+          otroOrigen.value = otroDestinoPrevio;
+          otroOrigen.disabled = true;
+          otroOrigen.classList.add("bloqueado");
+        }
+
+        if (sedeDestinoPrevia) {
+          const sedeOrigenSel = div.querySelector(".sedeOrigen");
+          sedeOrigenSel.value = sedeDestinoPrevia;
+          sedeOrigenSel.disabled = true;
+          sedeOrigenSel.classList.add("bloqueado");
+        }
+      }
+    }
+
+    /* =======================
+      ORIGEN
+    ======================= */
+    function manejarOrigen(select) {
+      const bloque = select.closest(".bloque");
+      const inputOtro = bloque.querySelector(".otro-origen");
+      const contSede = bloque.querySelector(".sede-origen");
+      const selSede = bloque.querySelector(".sedeOrigen");
+
+      if (select.value === "OTRO") {
+        inputOtro.style.display = "block";
+        contSede.style.display = "none";
+        selSede.innerHTML = "";
+        return;
+      } else {
+        inputOtro.style.display = "none";
+        inputOtro.value = "";
+      }
+
+      const sedes = sedesPorOrigen[select.value];
+      if (sedes) {
+        contSede.style.display = "block";
+        selSede.innerHTML = `<option value="">Seleccione la sede</option>`;
+        sedes.forEach(s => {
+          const op = document.createElement("option");
+          op.value = s;
+          op.textContent = s;
+          selSede.appendChild(op);
+        });
+      } else {
+        contSede.style.display = "none";
+        selSede.innerHTML = "";
+      }
+    }
+
+    /* =======================
+      DESTINO
+    ======================= */
+    function manejarDestino(select) {
+      const bloque = select.closest(".bloque");
+      const inputOtro = bloque.querySelector(".otro-destino");
+      const contSede = bloque.querySelector(".sede-destino");
+      const selSede = bloque.querySelector(".sedeDestino");
+
+      if (select.value === "OTRO") {
+        inputOtro.style.display = "block";
+        contSede.style.display = "none";
+        selSede.innerHTML = "";
+        return;
+      } else {
+        inputOtro.style.display = "none";
+        inputOtro.value = "";
+      }
+
+      const sedes = sedesPorOrigen[select.value];
+      if (sedes) {
+        contSede.style.display = "block";
+        selSede.innerHTML = `<option value="">Seleccione la sede</option>`;
+        sedes.forEach(s => {
+          const op = document.createElement("option");
+          op.value = s;
+          op.textContent = s;
+          selSede.appendChild(op);
+        });
+      } else {
+        contSede.style.display = "none";
+        selSede.innerHTML = "";
+      }
+    }
+    /* =======================
+      GENERAR CANTIDAD DE BUSES
+    ======================= */  
+    function generarBuses(bloque) {
+      const cantidad = Number(bloque.querySelector(".cantidad-buses").value);
+      const contenedor = bloque.querySelector(".contenedor-buses");
+
+      contenedor.innerHTML = "";
+
+      if (!cantidad || cantidad <= 1) {
+        contenedor.style.display = "none";
+        return;
+      }
+
+      // 🔥 MUNICIPIOS REALES
+      const municipioOrigen = obtenerMunicipioDesdeBloque(bloque, "origen");
+      const municipioDestino = obtenerMunicipioDesdeBloque(bloque, "destino");
+
+      // Si aún no están listos, no mostramos nada
+      if (!municipioOrigen || !municipioDestino) {
+        contenedor.style.display = "none";
+        return;
+      }
+
+      const municipiosPermitidos = obtenerMunicipiosPermitidos(
+        municipioOrigen,
+        municipioDestino
+      );
+
+      contenedor.style.display = "block";
+
+      for (let i = 1; i <= cantidad; i++) {
+        const divBus = document.createElement("div");
+        divBus.className = "bus";
+
+        const select = document.createElement("select");
+        select.className = "municipio-bus";
+        select.innerHTML = `<option value="">Seleccione municipio</option>`;
+
+        municipiosPermitidos.forEach(m => {
+          const op = document.createElement("option");
+          op.value = m;
+          op.textContent = m;
+          select.appendChild(op);
+        });
+
+        divBus.innerHTML = `<label>Bus ${i} – Municipio donde tomó el bus</label>`;
+        divBus.appendChild(select);
+        contenedor.appendChild(divBus);
+      }
+    }
+
+    /* Obtener Municipios*/
+    function obtenerMunicipioDesdeBloque(bloque, tipo) {
+      // tipo = "origen" o "destino"
+
+      const selectLugar = bloque.querySelector(`.${tipo}`);
+      const lugar = selectLugar.value;
+
+      if (!lugar || lugar === "OTRO") return "";
+
+      // Si tiene sedes
+      if (sedesPorOrigen[lugar]) {
+        const sedeSel = bloque.querySelector(
+          tipo === "origen" ? ".sedeOrigen" : ".sedeDestino"
+        );
+        const sede = sedeSel.value;
+        if (!sede) return "";
+        return municipioPorSede[sede] || "";
+      }
+
+      // Lugar sin sedes
+      return municipioPorLugar[lugar] || "";
+    }
+
+    /* Municipios permitidos*/ 
+
+    function obtenerMunicipiosPermitidos(origenMunicipio, destinoMunicipio) {
+      // Si son iguales → solo ese municipio
+      if (origenMunicipio === destinoMunicipio) {
+        return [origenMunicipio];
+      }
+
+      const permitidos = new Set();
+
+      // Siempre permitir origen y destino
+      permitidos.add(origenMunicipio);
+      permitidos.add(destinoMunicipio);
+
+      // Siempre permitir municipios de zona CENTRO
+      municipios.forEach(m => {
+        if (zonaPorMunicipio[m] === "CENTRO") {
+          permitidos.add(m);
+        }
+      });
+
+      return Array.from(permitidos);
+    }
+
+    /* =======================
+      ELIMINAR BLOQUE
+    ======================= */
+    function eliminarBloque(btn) {
+      const bloques = document.querySelectorAll(".bloque");
+      if (bloques.length === 1) {
+        alert("Debe existir al menos un desplazamiento.");
+        return;
+      }
+      btn.closest(".bloque").remove();
+    }
+
+    /* =======================
+      FORMATO VALOR
+    ======================= */
+    function formatearValor(input) {
+      let valor = input.value.replace(/\D/g, "");
+      if (!valor) {
+        input.value = "";
+        return;
+      }
+      input.value = valor.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    }
+
+    /* =======================
+      ENVIAR
+    ======================= */
+    function enviar() {
+      const bloques = document.querySelectorAll(".bloque");
+      const fecha = document.getElementById("fecha").value;
+      const tecnico = document.getElementById("tecnico").value;
+
+      if (!tecnico) return alert("Debe seleccionar el técnico");
+      if (!fecha) return alert("Debe seleccionar la fecha");
+
+      const desplazamientos = [];
+      let error = "";
+
+      bloques.forEach((b, i) => {
+        const origenSel = b.querySelector(".origen");
+        const destinoSel = b.querySelector(".destino");
+        const valorInput = b.querySelector(".valor");
+        const cantidadBusesSel = b.querySelector(".cantidad-buses");
+        const cantidadBuses = Number(cantidadBusesSel.value);
+        const municipiosBuses = [];
+
+        b.querySelectorAll(".municipio-bus").forEach((sel, idx) => {
+        if (!sel.value) {
+          error = `Debe seleccionar el municipio del bus ${idx + 1} en el desplazamiento ${i + 1}`;
+          return;
+        }
+        municipiosBuses.push(sel.value);
+        
+        });
+
+        let origen = "";
+        let destino = "";
+        let sedeOrigen = "";
+        let sedeDestino = "";
+        const valor = Number(valorInput.value.replace(/\./g, ""));
+
+        if (!origenSel.value) {
+          error = `Seleccione el origen en el desplazamiento ${i + 1}`;
+          return;
+        }
+
+        if (origenSel.value === "OTRO") {
+          origen = b.querySelector(".otro-origen").value.trim();
+          if (!origen) {
+            error = `Debe especificar el origen en el desplazamiento ${i + 1}`;
+            return;
+          }
+        } else {
+          origen = origenSel.value;
+          if (sedesPorOrigen[origen]) {
+            const sedeSel = b.querySelector(".sedeOrigen");
+            if (!sedeSel.value) {
+              error = `Debe seleccionar la sede del origen en el desplazamiento ${i + 1}`;
+              return;
+            }
+            sedeOrigen = sedeSel.value;
+          }
+        }
+
+        if (destinoSel.value === "OTRO") {
+          destino = b.querySelector(".otro-destino").value.trim();
+          if (!destino) {
+            error = `Debe especificar el destino en el desplazamiento ${i + 1}`;
+            return;
+          }
+        } else {
+          destino = destinoSel.value;
+          if (sedesPorOrigen[destino]) {
+            const sedeSel = b.querySelector(".sedeDestino");
+            if (!sedeSel.value) {
+              error = `Debe seleccionar la sede del destino en el desplazamiento ${i + 1}`;
+              return;
+            }
+            sedeDestino = sedeSel.value;
+          }
+        }
+
+        if (!cantidadBuses || cantidadBuses < 1) {
+          error = `Debe seleccionar la cantidad de buses en el desplazamiento ${i + 1}`;
+          return;
+        }
+
+        if (!valor || valor <= 0) {
+          error = `El valor es obligatorio en el desplazamiento ${i + 1}`;
+          return;
+        }
+
+        desplazamientos.push({ origen, sedeOrigen, destino, sedeDestino, cantidadBuses, municipiosBuses, valor });
+      });
+
+      if (error) return alert(error);
+
+      google.script.run.withSuccessHandler(msg => {
+        alert(msg);
+        location.reload();
+      }).guardar({ tecnico, fecha, desplazamientos });
+    }
+  </script>
+</body>
+</html>
