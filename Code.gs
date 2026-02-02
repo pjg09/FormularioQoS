@@ -5,83 +5,90 @@ function doGet() {
 
 function obtenerListas() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  
+
   // ---------- TECNICOS ----------
   const tecnicos = ss
     .getSheetByName("TECNICOS")
     .getRange("A2:A")
     .getValues()
     .flat()
-    .filter(String);
-  
+    .filter(String)
+    .map(t => normalizarTexto(t));
+
   // ---------- LUGARES ----------
   const lugaresSheet = ss.getSheetByName("LUGARES");
   const lugaresData = lugaresSheet
     .getRange("A2:B")
     .getValues()
     .filter(r => r[0]);
-  
+
   const lugares = [];
   const municipioPorLugar = {};
-  
+
   lugaresData.forEach(([lugar, municipio]) => {
-    lugares.push(lugar);
+    const lugarNorm = normalizarTexto(lugar);
+    lugares.push(lugarNorm);
     if (municipio) {
-      municipioPorLugar[lugar] = municipio;
+      municipioPorLugar[lugarNorm] = normalizarTexto(municipio);
     }
   });
-  
+
   // ---------- SEDES ----------
   const sedesSheet = ss.getSheetByName("SEDES");
   const sedesData = sedesSheet
     .getRange("A2:C")
     .getValues()
     .filter(r => r[0] && r[1]);
-  
+
   const sedesPorOrigen = {};
   const municipioPorSede = {};
-  
+
   sedesData.forEach(([origen, sede, municipio]) => {
-    if (!sedesPorOrigen[origen]) {
-      sedesPorOrigen[origen] = [];
+    const origenNorm = normalizarTexto(origen);
+    const sedeNorm = normalizarTexto(sede);
+
+    if (!sedesPorOrigen[origenNorm]) {
+      sedesPorOrigen[origenNorm] = [];
     }
-    sedesPorOrigen[origen].push(sede);
+    sedesPorOrigen[origenNorm].push(sedeNorm);
+
     if (municipio) {
-      municipioPorSede[sede] = municipio;
+      municipioPorSede[sedeNorm] = normalizarTexto(municipio);
     }
   });
-  
+
   // ---------- MUNICIPIOS ----------
   const municipiosSheet = ss.getSheetByName("MUNICIPIOS");
   const municipiosData = municipiosSheet
     .getRange("A2:B")
     .getValues()
     .filter(r => r[0] && r[1]);
-  
+
   const municipios = [];
   const zonaPorMunicipio = {};
-  
+
   municipiosData.forEach(([municipio, zona]) => {
-    municipios.push(municipio);
-    zonaPorMunicipio[municipio] = zona.toUpperCase();
+    const municipioNorm = normalizarTexto(municipio);
+    municipios.push(municipioNorm);
+    zonaPorMunicipio[municipioNorm] = normalizarTexto(zona);
   });
-  
-// ---------- TARIFAS ----------
-const tarifasSheet = ss.getSheetByName("TARIFAS");
-const tarifasData = tarifasSheet
-  .getRange("A2:C")
-  .getValues()
-  .filter(r => r[0] && r[1]);
 
-const tarifas = {};
+  // ---------- TARIFAS ----------
+  const tarifasSheet = ss.getSheetByName("TARIFAS");
+  const tarifasData = tarifasSheet
+    .getRange("A2:C")
+    .getValues()
+    .filter(r => r[0] && r[1]);
 
-tarifasData.forEach(([origen, destino, tarifa]) => {
-  const origenNorm = normalizarTexto(origen);
-  const destinoNorm = normalizarTexto(destino);
-  const key = `${origenNorm}|${destinoNorm}`;
-  tarifas[key] = Number(tarifa) || 0;
-});
-  
+  const tarifas = {};
+
+  tarifasData.forEach(([origen, destino, tarifa]) => {
+    const origenNorm = normalizarTexto(origen);
+    const destinoNorm = normalizarTexto(destino);
+    const key = `${origenNorm}|${destinoNorm}`;
+    tarifas[key] = Number(tarifa) || 0;
+  });
+
   // ---------- RETURN FINAL ----------
   return {
     tecnicos,
@@ -101,25 +108,26 @@ function normalizarTexto(texto) {
     .toString()
     .toUpperCase()
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, ""); // Elimina tildes
+    .replace(/[\u0300-\u036f]/g, "");
 }
 
 function guardar(datos) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const hoja = ss.getSheetByName("REGISTROS");
-  
+
   datos.desplazamientos.forEach(d => {
     hoja.appendRow([
-      new Date(),          // Fecha de registro
-      datos.fecha,         // Fecha
-      datos.tecnico,       // Técnico
-      d.origen,            // Origen
-      d.sedeOrigen || "",  // Sede origen
-      d.destino,           // Destino
-      d.sedeDestino || "", // Sede destino
-      d.valor              // Valor
+      new Date(),            // Fecha de envio de formulario
+      datos.fecha,           // Fecha desplazamiento
+      datos.tecnico,         // Nombre y Cédula
+      d.origen,              // Lugar origen
+      d.sedeOrigen || "",    // Sede origen
+      d.destino,             // Lugar destino
+      d.sedeDestino || "",   // Sede destino
+      d.cantidadBuses,       // Cantidad de buses
+      d.valor                // Valor
     ]);
   });
-  
+
   return "Recibos de transporte registrados correctamente.";
 }
