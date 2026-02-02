@@ -43,6 +43,16 @@
     .boton-eliminar:hover {
       opacity: 0.9;
     }
+    /* Estilo para el origen fijo (texto) */
+    .origen-fijo {
+      background-color: #f9f9f9;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      margin-top: 4px;
+      font-style: italic;
+      color: #555;
+    }
   </style>
 </head>
 
@@ -101,6 +111,7 @@
     function agregarBloque() {
       const bloques = document.querySelectorAll(".bloque");
       const ultimoBloque = bloques.length ? bloques[bloques.length - 1] : null;
+      const esPrimerBloque = bloques.length === 0;
 
       let destinoPrevio = "";
       let sedeDestinoPrevia = "";
@@ -119,90 +130,188 @@
 
       const div = document.createElement("div");
       div.className = "bloque";
+      div.dataset.bloqueIndex = bloques.length; // Guardamos el índice del bloque
 
-      div.innerHTML = `
-        <button type="button" class="boton-eliminar" onclick="eliminarBloque(this)">ELIMINAR DESPLAZAMIENTO</button>
+      // HTML diferente según si es el primer bloque o no
+      if (esPrimerBloque) {
+        // PRIMER BLOQUE: origen editable
+        div.innerHTML = `
+          <button type="button" class="boton-eliminar" onclick="eliminarBloque(this)">ELIMINAR DESPLAZAMIENTO</button>
 
-        <label>Origen</label>
-        <select class="origen">
-          <option value="">Seleccione origen</option>
-          ${lugares.map(l => `<option>${l}</option>`).join("")}
-          <option value="OTRO">Otro</option>
-        </select>
-
-        <input type="text" class="otro-origen" placeholder="Especifique el origen" style="display:none;">
-
-        <div class="sede-origen" style="display:none;">
-          <label>Sede origen</label>
-          <select class="sedeOrigen">
-            <option value="">Seleccione la sede</option>
+          <label>Origen</label>
+          <select class="origen">
+            <option value="">Seleccione origen</option>
+            ${lugares.map(l => `<option>${l}</option>`).join("")}
+            <option value="OTRO">Otro</option>
           </select>
-        </div>
 
-        <label>Destino</label>
-        <select class="destino">
-          <option value="">Seleccione destino</option>
-          ${lugares.map(l => `<option>${l}</option>`).join("")}
-          <option value="OTRO">Otro</option>
-        </select>
+          <input type="text" class="otro-origen" placeholder="Especifique el origen" style="display:none;">
 
-        <input type="text" class="otro-destino" placeholder="Especifique el destino" style="display:none;">
+          <div class="sede-origen" style="display:none;">
+            <label>Sede origen</label>
+            <select class="sedeOrigen">
+              <option value="">Seleccione la sede</option>
+            </select>
+          </div>
 
-        <div class="sede-destino" style="display:none;">
-          <label>Sede destino</label>
-          <select class="sedeDestino">
-            <option value="">Seleccione la sede</option>
+          <label>Destino</label>
+          <select class="destino">
+            <option value="">Seleccione destino</option>
+            ${lugares.map(l => `<option>${l}</option>`).join("")}
+            <option value="OTRO">Otro</option>
           </select>
-        </div>
 
-        <label>¿Cuántos buses tomaste?</label>
-          <select class="cantidad-buses" onchange="generarBuses(this.closest('.bloque'))">
+          <input type="text" class="otro-destino" placeholder="Especifique el destino" style="display:none;">
+
+          <div class="sede-destino" style="display:none;">
+            <label>Sede destino</label>
+            <select class="sedeDestino">
+              <option value="">Seleccione la sede</option>
+            </select>
+          </div>
+
+          <label>¿Cuántos buses tomaste?</label>
+          <select class="cantidad-buses">
             <option value="">Seleccione</option>
             <option value="1">1 bus</option>
             <option value="2">2 buses</option>
             <option value="3">3 buses</option>
           </select>
-        <label>Valor</label>
 
-        <div class="contenedor-buses" style="display:none;"></div>
+          <div class="contenedor-buses" style="display:none;"></div>
 
-        <input type="text" class="valor bloqueado" placeholder="Valor calculado Automáticamente" readonly>
-      `;
+          <label>Valor</label>
+          <input type="text" class="valor bloqueado" placeholder="Valor calculado Automáticamente" readonly>
+        `;
+      } else {
+        // BLOQUES SIGUIENTES: origen como texto fijo (no editable)
+        div.innerHTML = `
+          <button type="button" class="boton-eliminar" onclick="eliminarBloque(this)">ELIMINAR DESPLAZAMIENTO</button>
+
+          <label>Origen (heredado del destino anterior)</label>
+          <div class="origen-fijo">
+            <span class="origen-texto">Seleccione destino en el bloque anterior</span>
+          </div>
+          
+          <!-- Campos ocultos para almacenar el origen real -->
+          <input type="hidden" class="origen-value" value="">
+          <input type="hidden" class="otro-origen" value="">
+          <input type="hidden" class="sedeOrigen-value" value="">
+
+          <label>Destino</label>
+          <select class="destino">
+            <option value="">Seleccione destino</option>
+            ${lugares.map(l => `<option>${l}</option>`).join("")}
+            <option value="OTRO">Otro</option>
+          </select>
+
+          <input type="text" class="otro-destino" placeholder="Especifique el destino" style="display:none;">
+
+          <div class="sede-destino" style="display:none;">
+            <label>Sede destino</label>
+            <select class="sedeDestino">
+              <option value="">Seleccione la sede</option>
+            </select>
+          </div>
+
+          <label>¿Cuántos buses tomaste?</label>
+          <select class="cantidad-buses">
+            <option value="">Seleccione</option>
+            <option value="1">1 bus</option>
+            <option value="2">2 buses</option>
+            <option value="3">3 buses</option>
+          </select>
+
+          <div class="contenedor-buses" style="display:none;"></div>
+
+          <label>Valor</label>
+          <input type="text" class="valor bloqueado" placeholder="Valor calculado Automáticamente" readonly>
+        `;
+      }
 
       document.getElementById("desplazamientos").appendChild(div);
 
-      const origenSelect = div.querySelector(".origen");
       const destinoSelect = div.querySelector(".destino");
       const cantidadBusesSelect = div.querySelector(".cantidad-buses");
+      
       cantidadBusesSelect.addEventListener("change", () => generarBuses(div));
+      destinoSelect.addEventListener("change", () => {
+        manejarDestino(destinoSelect);
+        actualizarSiguienteBloque(div); // Actualizar el bloque siguiente cuando cambie el destino
+      });
 
-      origenSelect.addEventListener("change", () => manejarOrigen(origenSelect));
-      destinoSelect.addEventListener("change", () => manejarDestino(destinoSelect));
+      if (esPrimerBloque) {
+        // Solo el primer bloque tiene origen editable
+        const origenSelect = div.querySelector(".origen");
+        origenSelect.addEventListener("change", () => manejarOrigen(origenSelect));
+      } else {
+        // Sincronizar origen con el destino del bloque anterior
+        sincronizarOrigenConBloqueAnterior(div);
+      }
+    }
 
-      if (destinoPrevio) {
-        origenSelect.value = destinoPrevio;
-        manejarOrigen(origenSelect);
-        origenSelect.disabled = true;
-        origenSelect.classList.add("bloqueado");
+    /* =======================
+      SINCRONIZAR ORIGEN CON BLOQUE ANTERIOR
+    ======================= */
+    function sincronizarOrigenConBloqueAnterior(bloqueActual) {
+      const bloques = Array.from(document.querySelectorAll(".bloque"));
+      const indexActual = bloques.indexOf(bloqueActual);
+      
+      if (indexActual === 0) return; // El primer bloque no se sincroniza
 
-        if (destinoPrevio === "OTRO" && otroDestinoPrevio) {
-          const otroOrigen = div.querySelector(".otro-origen");
-          otroOrigen.value = otroDestinoPrevio;
-          otroOrigen.disabled = true;
-          otroOrigen.classList.add("bloqueado");
-        }
+      const bloqueAnterior = bloques[indexActual - 1];
+      const destinoAnterior = bloqueAnterior.querySelector(".destino").value;
 
-        if (sedeDestinoPrevia) {
-          const sedeOrigenSel = div.querySelector(".sedeOrigen");
-          sedeOrigenSel.value = sedeDestinoPrevia;
-          sedeOrigenSel.disabled = true;
-          sedeOrigenSel.classList.add("bloqueado");
+      if (!destinoAnterior) {
+        bloqueActual.querySelector(".origen-texto").textContent = "Seleccione destino en el bloque anterior";
+        return;
+      }
+
+      const origenTexto = bloqueActual.querySelector(".origen-texto");
+      const origenValue = bloqueActual.querySelector(".origen-value");
+      const otroOrigenInput = bloqueActual.querySelector(".otro-origen");
+      const sedeOrigenValue = bloqueActual.querySelector(".sedeOrigen-value");
+
+      if (destinoAnterior === "OTRO") {
+        const otroDestino = bloqueAnterior.querySelector(".otro-destino").value.trim();
+        origenTexto.textContent = otroDestino || "Especifique destino en el bloque anterior";
+        origenValue.value = "OTRO";
+        otroOrigenInput.value = otroDestino;
+        sedeOrigenValue.value = "";
+      } else {
+        origenValue.value = destinoAnterior;
+        otroOrigenInput.value = "";
+        
+        // Verificar si tiene sede
+        if (sedesPorOrigen[destinoAnterior]) {
+          const sedeDestino = bloqueAnterior.querySelector(".sedeDestino").value;
+          sedeOrigenValue.value = sedeDestino;
+          origenTexto.textContent = sedeDestino 
+            ? `${destinoAnterior} - ${sedeDestino}` 
+            : `${destinoAnterior} (seleccione sede en el bloque anterior)`;
+        } else {
+          origenTexto.textContent = destinoAnterior;
+          sedeOrigenValue.value = "";
         }
       }
     }
 
     /* =======================
-      ORIGEN
+      ACTUALIZAR SIGUIENTE BLOQUE
+    ======================= */
+    function actualizarSiguienteBloque(bloqueActual) {
+      const bloques = Array.from(document.querySelectorAll(".bloque"));
+      const indexActual = bloques.indexOf(bloqueActual);
+      
+      // Si hay un bloque siguiente, actualizarlo
+      if (indexActual < bloques.length - 1) {
+        const siguienteBloque = bloques[indexActual + 1];
+        sincronizarOrigenConBloqueAnterior(siguienteBloque);
+      }
+    }
+
+    /* =======================
+      ORIGEN (solo para primer bloque)
     ======================= */
     function manejarOrigen(select) {
       const bloque = select.closest(".bloque");
@@ -265,11 +374,17 @@
           op.textContent = s;
           selSede.appendChild(op);
         });
+        
+        // Listener para actualizar el siguiente bloque cuando cambie la sede
+        selSede.addEventListener("change", () => {
+          actualizarSiguienteBloque(bloque);
+        });
       } else {
         contSede.style.display = "none";
         selSede.innerHTML = "";
       }
     }
+
     /* =======================
       GENERAR CANTIDAD DE BUSES
     ======================= */  
@@ -284,11 +399,9 @@
         return;
       }
 
-      // 🔥 MUNICIPIOS REALES
       const municipioOrigen = obtenerMunicipioDesdeBloque(bloque, "origen");
       const municipioDestino = obtenerMunicipioDesdeBloque(bloque, "destino");
 
-      // Si aún no están listos, no mostramos nada
       if (!municipioOrigen || !municipioDestino) {
         contenedor.style.display = "none";
         return;
@@ -324,42 +437,68 @@
 
     /* Obtener Municipios*/
     function obtenerMunicipioDesdeBloque(bloque, tipo) {
-      // tipo = "origen" o "destino"
+      const bloques = Array.from(document.querySelectorAll(".bloque"));
+      const esPrimerBloque = bloques.indexOf(bloque) === 0;
 
-      const selectLugar = bloque.querySelector(`.${tipo}`);
-      const lugar = selectLugar.value;
+      if (tipo === "origen") {
+        if (esPrimerBloque) {
+          // Primer bloque: tiene select de origen
+          const selectLugar = bloque.querySelector(".origen");
+          const lugar = selectLugar.value;
 
-      if (!lugar || lugar === "OTRO") return "";
+          if (!lugar || lugar === "OTRO") return "";
 
-      // Si tiene sedes
-      if (sedesPorOrigen[lugar]) {
-        const sedeSel = bloque.querySelector(
-          tipo === "origen" ? ".sedeOrigen" : ".sedeDestino"
-        );
-        const sede = sedeSel.value;
-        if (!sede) return "";
-        return municipioPorSede[sede] || "";
+          if (sedesPorOrigen[lugar]) {
+            const sedeSel = bloque.querySelector(".sedeOrigen");
+            const sede = sedeSel.value;
+            if (!sede) return "";
+            return municipioPorSede[sede] || "";
+          }
+
+          return municipioPorLugar[lugar] || "";
+        } else {
+          // Bloques siguientes: usan valores hidden
+          const origenValue = bloque.querySelector(".origen-value").value;
+          
+          if (!origenValue || origenValue === "OTRO") return "";
+
+          if (sedesPorOrigen[origenValue]) {
+            const sedeValue = bloque.querySelector(".sedeOrigen-value").value;
+            if (!sedeValue) return "";
+            return municipioPorSede[sedeValue] || "";
+          }
+
+          return municipioPorLugar[origenValue] || "";
+        }
+      } else {
+        // tipo === "destino"
+        const selectLugar = bloque.querySelector(".destino");
+        const lugar = selectLugar.value;
+
+        if (!lugar || lugar === "OTRO") return "";
+
+        if (sedesPorOrigen[lugar]) {
+          const sedeSel = bloque.querySelector(".sedeDestino");
+          const sede = sedeSel.value;
+          if (!sede) return "";
+          return municipioPorSede[sede] || "";
+        }
+
+        return municipioPorLugar[lugar] || "";
       }
-
-      // Lugar sin sedes
-      return municipioPorLugar[lugar] || "";
     }
 
     /* Municipios permitidos*/ 
-
     function obtenerMunicipiosPermitidos(origenMunicipio, destinoMunicipio) {
-      // Si son iguales → solo ese municipio
       if (origenMunicipio === destinoMunicipio) {
         return [origenMunicipio];
       }
 
       const permitidos = new Set();
 
-      // Siempre permitir origen y destino
       permitidos.add(origenMunicipio);
       permitidos.add(destinoMunicipio);
 
-      // Siempre permitir municipios de zona CENTRO
       municipios.forEach(m => {
         if (zonaPorMunicipio[m] === "CENTRO") {
           permitidos.add(m);
@@ -378,7 +517,20 @@
         alert("Debe existir al menos un desplazamiento.");
         return;
       }
-      btn.closest(".bloque").remove();
+      
+      const bloqueAEliminar = btn.closest(".bloque");
+      const bloquesArray = Array.from(bloques);
+      const indexEliminar = bloquesArray.indexOf(bloqueAEliminar);
+      
+      bloqueAEliminar.remove();
+      
+      // Actualizar el siguiente bloque si existe
+      if (indexEliminar < bloquesArray.length - 1) {
+        const siguienteBloque = bloquesArray[indexEliminar + 1];
+        if (siguienteBloque) {
+          sincronizarOrigenConBloqueAnterior(siguienteBloque);
+        }
+      }
     }
 
     /* =======================
@@ -408,7 +560,9 @@
       let error = "";
 
       bloques.forEach((b, i) => {
-        const origenSel = b.querySelector(".origen");
+        const bloquesArray = Array.from(bloques);
+        const esPrimerBloque = bloquesArray.indexOf(b) === 0;
+        
         const destinoSel = b.querySelector(".destino");
         const valorInput = b.querySelector(".valor");
         const cantidadBusesSel = b.querySelector(".cantidad-buses");
@@ -416,12 +570,11 @@
         const municipiosBuses = [];
 
         b.querySelectorAll(".municipio-bus").forEach((sel, idx) => {
-        if (!sel.value) {
-          error = `Debe seleccionar el municipio del bus ${idx + 1} en el desplazamiento ${i + 1}`;
-          return;
-        }
-        municipiosBuses.push(sel.value);
-        
+          if (!sel.value) {
+            error = `Debe seleccionar el municipio del bus ${idx + 1} en el desplazamiento ${i + 1}`;
+            return;
+          }
+          municipiosBuses.push(sel.value);
         });
 
         let origen = "";
@@ -430,29 +583,58 @@
         let sedeDestino = "";
         const valor = Number(valorInput.value.replace(/\./g, ""));
 
-        if (!origenSel.value) {
-          error = `Seleccione el origen en el desplazamiento ${i + 1}`;
-          return;
-        }
-
-        if (origenSel.value === "OTRO") {
-          origen = b.querySelector(".otro-origen").value.trim();
-          if (!origen) {
-            error = `Debe especificar el origen en el desplazamiento ${i + 1}`;
+        // ORIGEN
+        if (esPrimerBloque) {
+          const origenSel = b.querySelector(".origen");
+          if (!origenSel.value) {
+            error = `Seleccione el origen en el desplazamiento ${i + 1}`;
             return;
           }
-        } else {
-          origen = origenSel.value;
-          if (sedesPorOrigen[origen]) {
-            const sedeSel = b.querySelector(".sedeOrigen");
-            if (!sedeSel.value) {
-              error = `Debe seleccionar la sede del origen en el desplazamiento ${i + 1}`;
+
+          if (origenSel.value === "OTRO") {
+            origen = b.querySelector(".otro-origen").value.trim();
+            if (!origen) {
+              error = `Debe especificar el origen en el desplazamiento ${i + 1}`;
               return;
             }
-            sedeOrigen = sedeSel.value;
+          } else {
+            origen = origenSel.value;
+            if (sedesPorOrigen[origen]) {
+              const sedeSel = b.querySelector(".sedeOrigen");
+              if (!sedeSel.value) {
+                error = `Debe seleccionar la sede del origen en el desplazamiento ${i + 1}`;
+                return;
+              }
+              sedeOrigen = sedeSel.value;
+            }
+          }
+        } else {
+          // Bloques siguientes: leer de campos hidden
+          const origenValue = b.querySelector(".origen-value").value;
+          if (!origenValue) {
+            error = `El origen no está definido en el desplazamiento ${i + 1}. Complete el destino del bloque anterior.`;
+            return;
+          }
+
+          if (origenValue === "OTRO") {
+            origen = b.querySelector(".otro-origen").value.trim();
+            if (!origen) {
+              error = `El origen "OTRO" no está especificado en el desplazamiento ${i + 1}`;
+              return;
+            }
+          } else {
+            origen = origenValue;
+            if (sedesPorOrigen[origen]) {
+              sedeOrigen = b.querySelector(".sedeOrigen-value").value;
+              if (!sedeOrigen) {
+                error = `Debe seleccionar la sede del origen en el desplazamiento ${i + 1}`;
+                return;
+              }
+            }
           }
         }
 
+        // DESTINO
         if (destinoSel.value === "OTRO") {
           destino = b.querySelector(".otro-destino").value.trim();
           if (!destino) {
